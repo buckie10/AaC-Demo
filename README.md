@@ -33,6 +33,12 @@ Candidates are never written to Fuseki. They exist only in the combined in-memor
 
 HTTP 422 means the request is structurally valid but violates architecture policy. Malformed manifests return 400, and unknown application/target identifiers return 404. The API reads the policy code from `policy:errorCode` on the SHACL source shape and presents SHACL results; it does not duplicate the cross-domain rule in Python or Jenkins.
 
+## Explainable assertion reports
+
+Each Jenkins run creates and archives `architecture-assertion/` containing the original `manifest.yaml`, the JSON request and API response, the HTTP status, and `report.html`. The response includes the actual candidate Turtle, the RDF retrieved from Fuseki for evaluation, the serialized pySHACL report, and policy metadata extracted from `semantic/shapes.ttl`. The HTML report presents these as deployment manifest, candidate RDF, authoritative context, policy, SHACL evaluation, and final deployment decision.
+
+The pipeline deliberately captures the response, generates the report, archives the artifacts, and only then fails the deployment gate for a non-200 response. A rejected assertion therefore remains inspectable in Jenkins even though the Deploy stage is skipped. The original YAML is copied by Jenkins as source material; the semantic evidence is returned by the API and is not reconstructed by the report generator.
+
 ## Goal
 
 A Jenkins deployment submits a deployment manifest to an Architecture Assertion API.

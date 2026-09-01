@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from rdflib import Namespace, RDF
 from .models import Manifest
-from .rdf_mapper import EA, ENT, candidate_graph
+from .rdf_mapper import EA, ENT, candidate_graph, serialize_graph
 from .fuseki_repository import FusekiArchitectureRepository
 from .validation import validate_candidate
 
@@ -46,9 +46,19 @@ def assert_architecture(manifest: Manifest):
     candidate = candidate_graph(manifest)
     log.info("candidate RDF created id=%s triples=%d", assertion_id, len(candidate))
     log.info("SHACL validation started id=%s", assertion_id)
-    violations = validate_candidate(authoritative, candidate)
+    violations, shacl_report, policies = validate_candidate(authoritative, candidate)
+    evidence = {
+        "candidateRdf": serialize_graph(candidate),
+        "authoritativeContextRdf": serialize_graph(authoritative),
+        "shaclReportRdf": shacl_report.serialize(format="turtle"),
+    }
+    evaluation = {
+        "policyCodes": [policy["code"] for policy in policies],
+        "sourceShapes": [policy["sourceShape"] for policy in policies],
+        "policies": policies,
+    }
     if violations:
         log.info("SHACL validation failed id=%s codes=%s", assertion_id, [v["code"] for v in violations])
-        return JSONResponse(status_code=422, content={"status": "rejected", "conforms": False, "assertionId": assertion_id, "violations": violations})
+        return JSONResponse(status_code=422, content={"status": "rejected", "conforms": False, "assertionId": assertion_id, "violations": violations, "evidence": evidence, "evaluation": evaluation})
     log.info("SHACL validation passed id=%s", assertion_id)
-    return {"status": "accepted", "conforms": True, "assertionId": assertion_id, "violations": []}
+    return {"status": "accepted", "conforms": True, "assertionId": assertion_id, "violations": [], "evidence": evidence, "evaluation": evaluation}

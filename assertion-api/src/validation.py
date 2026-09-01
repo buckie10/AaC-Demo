@@ -1,5 +1,5 @@
 from pathlib import Path
-from rdflib import Graph, Namespace, URIRef, RDF
+from rdflib import Graph, Namespace, URIRef, RDF, RDFS
 from pyshacl import validate
 from .rdf_mapper import EA, uri_identifier
 
@@ -7,7 +7,7 @@ POLICY = Namespace("https://example.org/architecture/policy#")
 SH = Namespace("http://www.w3.org/ns/shacl#")
 
 
-def validate_candidate(authoritative: Graph, candidate: Graph) -> list[dict]:
+def validate_candidate(authoritative: Graph, candidate: Graph) -> tuple[list[dict], Graph, list[dict]]:
     combined = authoritative + candidate
     shapes_path = Path(__file__).parents[1] / "semantic" / "shapes.ttl"
     if not shapes_path.exists():
@@ -15,7 +15,7 @@ def validate_candidate(authoritative: Graph, candidate: Graph) -> list[dict]:
     shapes = Graph().parse(shapes_path.as_uri(), format="turtle")
     conforms, report, _ = validate(combined, shacl_graph=shapes, inference="none", advanced=True)
     if conforms:
-        return []
+        return [], report, policy_metadata(shapes)
     violations = []
     for result in report.subjects(RDF.type, SH.ValidationResult):
         source_shape = report.value(result, SH.sourceShape)
@@ -39,4 +39,18 @@ def validate_candidate(authoritative: Graph, candidate: Graph) -> list[dict]:
             "targetDomain": uri_identifier(target_domain) if target_domain else None,
             "message": str(message) if message else "Architecture policy violation.",
         })
-    return sorted(violations, key=lambda item: (item["code"], item.get("target") or "", item.get("source") or ""))
+    return sorted(violations, key=lambda item: (item["code"], item.get("target") or "", item.get("source") or "")), report, policy_metadata(shapes)
+
+
+def policy_metadata(shapes: Graph) -> list[dict]:
+    policies = []
+    for source_shape in sorted(shapes.subjects(POLICY.errorCode, None), key=str):
+        constraint = shapes.value(source_shape, SH.sparql)
+        policies.append({
+            "code": str(shapes.value(source_shape, POLICY.errorCode)),
+            "sourceShape": str(source_shape),
+            "label": str(shapes.value(source_shape, RDFS.label) or ""),
+            "message": str(shapes.value(constraint, SH.message) or "") if constraint else "",
+            "sparql": str(shapes.value(constraint, SH.select) or "") if constraint else "",
+        })
+    return policies

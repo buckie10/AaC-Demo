@@ -3,5 +3,6 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates python3 python3-yaml && rm -rf /var/lib/apt/lists/*
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
 RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
+COPY manifest_to_json.py render_report.py /usr/local/bin/
 USER jenkins
 COPY Jenkinsfile /usr/share/jenkins/ref/Jenkinsfile

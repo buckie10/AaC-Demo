@@ -22,3 +22,10 @@ def candidate_graph(manifest: Manifest) -> Graph:
 
 def uri_identifier(uri: URIRef) -> str:
     return str(uri).rstrip("/").rsplit("/", 1)[-1]
+
+
+def serialize_graph(graph: Graph) -> str:
+    graph.bind("ea", EA)
+    graph.bind("ent", ENT)
+    graph.bind("dep", DEP)
+    return graph.serialize(format="turtle")

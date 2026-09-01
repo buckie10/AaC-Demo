@@ -5,14 +5,39 @@ pipeline {
   }
   stages {
     stage('Checkout') { steps { echo 'Repository content is mounted into the demonstrator image.' } }
-    stage('Build / Prepare') { steps { sh "test -f /workspace/manifests/${params.MANIFEST}" } }
+    stage('Build / Prepare') {
+      steps {
+        sh """
+          set -eu
+          rm -rf architecture-assertion
+          mkdir -p architecture-assertion
+          cp /workspace/manifests/${params.MANIFEST} architecture-assertion/manifest.yaml
+          python3 /usr/local/bin/manifest_to_json.py architecture-assertion/manifest.yaml > architecture-assertion/request.json
+        """
+      }
+    }
     stage('Architecture Assertion') {
       steps {
         script {
-          def response = sh(script: "curl -sS -w '\\n%{http_code}' -X POST -H 'Content-Type: application/json' --data \"\$(python3 -c 'import sys,yaml,json; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))' /workspace/manifests/${params.MANIFEST})\" http://assertion-api:8000/architecture/assertions", returnStdout: true).trim()
-          def lines = response.readLines(); def status = lines[-1]; def body = lines[0..-2].join('\n')
-          echo body
-          if (status != '200') { error("Architecture assertion rejected (HTTP ${status})") }
+          def status = sh(script: "curl -sS -X POST -H 'Content-Type: application/json' --data-binary @architecture-assertion/request.json -o architecture-assertion/architecture-assertion.json -w '%{http_code}' http://assertion-api:8000/architecture/assertions", returnStdout: true).trim()
+          writeFile file: 'architecture-assertion/http-status.txt', text: status
+          sh "python3 /usr/local/bin/render_report.py architecture-assertion/architecture-assertion.json architecture-assertion/manifest.yaml architecture-assertion/report.html ${status}"
+          echo readFile('architecture-assertion/architecture-assertion.json')
+          env.ASSERTION_HTTP_STATUS = status
+        }
+      }
+    }
+    stage('Archive Architecture Report') {
+      steps {
+        archiveArtifacts artifacts: 'architecture-assertion/**', fingerprint: true
+      }
+    }
+    stage('Deployment Gate') {
+      steps {
+        script {
+          if (env.ASSERTION_HTTP_STATUS != '200') {
+            error("Architecture assertion rejected (HTTP ${env.ASSERTION_HTTP_STATUS}); report archived")
+          }
         }
       }
     }
