@@ -1,0 +1,73 @@
+@prefix ea:   <https://example.org/architecture/ontology#> .
+@prefix ent:  <https://example.org/architecture/entity/> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# Domains
+#################################################################
+
+ent:FC
+    a ea:Domain ;
+    rdfs:label "Financial Crime" .
+
+ent:RC
+    a ea:Domain ;
+    rdfs:label "Regulatory Compliance" .
+
+#################################################################
+# Applications
+#################################################################
+
+ent:FC-TM
+    a ea:Application ;
+    rdfs:label "Transaction Monitoring" ;
+    ea:ownedByDomain ent:FC .
+
+ent:FC-CM
+    a ea:Application ;
+    rdfs:label "Financial Crime Case Management" ;
+    ea:ownedByDomain ent:FC .
+
+ent:RC-RR
+    a ea:Application ;
+    rdfs:label "Regulatory Reporting" ;
+    ea:ownedByDomain ent:RC .
+
+ent:RC-CM
+    a ea:Application ;
+    rdfs:label "Regulatory Compliance Case Management" ;
+    ea:ownedByDomain ent:RC .
+
+#################################################################
+# Databases
+#################################################################
+
+ent:FC-TM-DB
+    a ea:Database ;
+    rdfs:label "Transaction Monitoring Database" ;
+    ea:databaseOf ent:FC-TM .
+
+ent:FC-CASE-DB
+    a ea:Database ;
+    rdfs:label "Financial Crime Case Database" ;
+    ea:databaseOf ent:FC-CM .
+
+ent:RC-CASE-DB
+    a ea:Database ;
+    rdfs:label "Regulatory Compliance Case Database" ;
+    ea:databaseOf ent:RC-CM .
+
+#################################################################
+# APIs
+#################################################################
+
+ent:FC-CASE-API
+    a ea:API ;
+    rdfs:label "Financial Crime Case API" ;
+    ea:apiOf ent:FC-CM .
+
+ent:RC-CASE-API
+    a ea:API ;
+    rdfs:label "Regulatory Compliance Case API" ;
+    ea:apiOf ent:RC-CM .

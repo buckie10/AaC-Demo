@@ -1,46 +1,229 @@
-# Project name
+# Architecture-as-Code Lab — v0.1
 
-Short description of the project and the problem it solves.
-
-## Getting started
-
-### Prerequisites
-
-- Add required tools and versions here.
-
-### Install
+This executable vertical slice demonstrates a deployment gate whose decision is produced by RDF plus SHACL. Jenkins submits a YAML deployment manifest, the Assertion API maps it to transient candidate RDF, retrieves authoritative enterprise facts from Fuseki, evaluates the combined graph with `semantic/shapes.ttl`, and returns `200` (accepted) or `422` (policy violation).
 
 ```text
-Add installation steps here.
+Developer / Repo -- manifest --> Jenkins -- HTTP --> Assertion API -- RDF --> Fuseki
+                                             |           |
+                                             |           +-- temporary candidate + SHACL
+                                             +-------- 200 / 422
 ```
 
-### Run
+## Runtime
 
-```text
-Add the command to run the project here.
+Fuseki owns the authoritative ontology and canonical enterprise graph. The API owns manifest validation, identifier resolution, mapping, context retrieval, and execution of the versioned SHACL policy. Jenkins only selects a manifest and responds to the API status; it contains no FC/RC architecture rules.
+
+```powershell
+docker compose up --build
 ```
 
-## Testing
+Services: Fuseki `http://localhost:3030`, Assertion API `http://localhost:8000`, Jenkins `http://localhost:8080`. Bootstrap waits for Fuseki readiness and uploads the ontology and canonical world into the in-memory `/architecture` dataset. The API waits for bootstrap completion.
 
-```text
-Add the test command here.
+In Jenkins, create a Pipeline job using `jenkins/Jenkinsfile`, then select `MANIFEST`: `valid_intra_domain.yaml` is green, `invalid_cross_domain_db.yaml` is red with `ARCH-DATA-001` and HTTP 422, and `valid_cross_domain_api.yaml` is green.
+
+## Tests and lifecycle
+
+```powershell
+pip install -r assertion-api/requirements.txt
+$env:PYTHONPATH='assertion-api'
+pytest -q
 ```
 
-## Project structure
+Candidates are never written to Fuseki. They exist only in the combined in-memory validation graph and are discarded after the request. To recreate the bootstrap dataset, run `docker compose down` and then `docker compose up --build`; no persistent Fuseki volume is configured.
+
+HTTP 422 means the request is structurally valid but violates architecture policy. Malformed manifests return 400, and unknown application/target identifiers return 404. The API reads the policy code from `policy:errorCode` on the SHACL source shape and presents SHACL results; it does not duplicate the cross-domain rule in Python or Jenkins.
+
+## Goal
+
+A Jenkins deployment submits a deployment manifest to an Architecture Assertion API.
+
+The API converts the manifest into candidate RDF assertions, evaluates them against the authoritative enterprise architecture graph and the SHACL policy set, then returns:
+
+- success when the candidate architecture conforms; or
+- HTTP `422 Unprocessable Entity` with an architecture policy code when it violates a deploy-time architecture rule.
+
+The headline policy is:
+
+> **ARCH-DATA-001** — An application may directly access a database only when both belong to the same enterprise domain. Cross-domain data access must use an API.
+
+## Structure
 
 ```text
-.
-├── src/          # Application or library source
-├── tests/        # Automated tests
-├── docs/         # Longer-form documentation
+architecture-as-code-lab-assets/
+├── semantic/
+│   ├── ontology.ttl
+│   ├── canonical_world.ttl
+│   ├── shapes.ttl
+│   └── candidates/
+│       ├── valid_intra_domain.ttl
+│       ├── invalid_cross_domain_db.ttl
+│       └── valid_cross_domain_api.ttl
+├── manifests/
+│   ├── valid_intra_domain.yaml
+│   ├── invalid_cross_domain_db.yaml
+│   └── valid_cross_domain_api.yaml
+├── queries/
+│   ├── resource_domains.sparql
+│   └── detect_cross_domain_direct_db.sparql
+├── expected/
+│   ├── valid.json
+│   └── invalid_cross_domain_db.json
 └── README.md
 ```
 
-## Contributing
+## Semantic split
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+### `semantic/ontology.ttl`
 
-## License
+Defines the vocabulary:
 
-Add the project license here.
+- `Domain`
+- `Application`
+- `Database`
+- `API`
+- `DeploymentAssertion`
+- ownership relationships
+- candidate deployment relationships
 
+It also defines the OWL `belongsToDomain` property using property-chain axioms.
+
+The deploy-time SHACL policy does **not** depend on this inference being materialised. It traverses the explicit ownership relationships so the control works against a normal Fuseki dataset without requiring an inference-enabled dataset configuration.
+
+### `semantic/canonical_world.ttl`
+
+Authoritative enterprise facts for the demo.
+
+Domains:
+
+- `FC` — Financial Crime
+- `RC` — Regulatory Compliance
+
+Applications:
+
+- `FC-TM` — Transaction Monitoring
+- `FC-CM` — Financial Crime Case Management
+- `RC-RR` — Regulatory Reporting
+- `RC-CM` — Regulatory Compliance Case Management
+
+Databases:
+
+- `FC-TM-DB`
+- `FC-CASE-DB`
+- `RC-CASE-DB`
+
+APIs:
+
+- `FC-CASE-API`
+- `RC-CASE-API`
+
+### `semantic/shapes.ttl`
+
+Contains:
+
+1. structural validation for a `DeploymentAssertion`; and
+2. `ARCH-DATA-001`, the cross-domain direct-database-access rule.
+
+The named policy shape carries:
+
+```turtle
+policy:errorCode "ARCH-DATA-001"
+```
+
+An Assertion API can use the SHACL result's `sh:sourceShape` to resolve that stable policy code.
+
+## Candidate graph model
+
+The YAML manifests are deployment-facing examples.
+
+The Architecture Assertion API is expected to transform them into RDF similar to the files under `semantic/candidates/`.
+
+For example:
+
+```yaml
+deployment:
+  id: invalid-cross-domain-db
+  application: FC-TM
+  components:
+    - id: transaction-monitoring-worker
+      type: service
+      connections:
+        - mode: direct-database
+          target: RC-CASE-DB
+```
+
+becomes conceptually:
+
+```turtle
+dep:invalid-cross-domain-db
+    a ea:DeploymentAssertion ;
+    ea:deployedApplication ent:FC-TM ;
+    ea:directDatabaseAccess ent:RC-CASE-DB .
+```
+
+The manifest does not declare the source or target domain. Domain ownership remains authoritative enterprise knowledge.
+
+## Three demonstration scenarios
+
+### 1. Valid intra-domain database access
+
+`FC-TM` -> direct DB -> `FC-TM-DB`
+
+Both resolve to Financial Crime.
+
+Expected result: **conforms**.
+
+### 2. Invalid cross-domain database access
+
+`FC-TM` -> direct DB -> `RC-CASE-DB`
+
+The source application resolves to Financial Crime.
+
+The target database is owned by `RC-CM`, which resolves to Regulatory Compliance.
+
+Expected result:
+
+```text
+ARCH-DATA-001
+HTTP 422
+deployment rejected
+```
+
+### 3. Valid cross-domain API access
+
+`FC-TM` -> API -> `RC-CASE-API`
+
+The relationship crosses the FC/RC domain boundary, but uses the permitted mediated access pattern.
+
+Expected result: **conforms**.
+
+## Validation data model
+
+For SHACL validation, evaluate:
+
+```text
+authoritative enterprise graph
+        +
+candidate assertion graph
+        ↓
+SHACL shapes
+```
+
+The candidate graph should not be committed to the authoritative architecture graph merely to validate it.
+
+A useful lifecycle is:
+
+```text
+DECLARED
+   ↓
+EVALUATED
+   ├── REJECTED
+   └── ACCEPTED
+          ↓
+       DEPLOYED
+```
+
+## Useful exploratory queries
+
+`queries/resource_domains.sparql` demonstrates domain resolution for APIs and databases using explicit graph traversal.
+
+`queries/detect_cross_domain_direct_db.sparql` shows the same essential logic as `ARCH-DATA-001` as an ordinary SPARQL query.

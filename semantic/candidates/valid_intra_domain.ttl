@@ -1,0 +1,8 @@
+@prefix ea:  <https://example.org/architecture/ontology#> .
+@prefix ent: <https://example.org/architecture/entity/> .
+@prefix dep: <https://example.org/architecture/deployment/> .
+
+dep:valid-intra-domain
+    a ea:DeploymentAssertion ;
+    ea:deployedApplication ent:FC-TM ;
+    ea:directDatabaseAccess ent:FC-TM-DB .

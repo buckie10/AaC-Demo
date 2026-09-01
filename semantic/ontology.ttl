@@ -1,0 +1,111 @@
+@prefix ea:   <https://example.org/architecture/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ea:EnterpriseArchitectureOntology
+    a owl:Ontology ;
+    rdfs:label "Enterprise Architecture Ontology" ;
+    rdfs:comment "Minimal ontology for the architecture-as-code demonstrator." .
+
+#################################################################
+# Core enterprise architecture classes
+#################################################################
+
+ea:Domain
+    a owl:Class ;
+    rdfs:label "Domain" .
+
+ea:Application
+    a owl:Class ;
+    rdfs:label "Application" .
+
+ea:ServiceComponent
+    a owl:Class ;
+    rdfs:label "Service Component" .
+
+ea:DataStore
+    a owl:Class ;
+    rdfs:label "Data Store" .
+
+ea:Database
+    a owl:Class ;
+    rdfs:subClassOf ea:DataStore ;
+    rdfs:label "Database" .
+
+ea:API
+    a owl:Class ;
+    rdfs:label "API" .
+
+#################################################################
+# Candidate deployment class
+#################################################################
+
+ea:DeploymentAssertion
+    a owl:Class ;
+    rdfs:label "Deployment Assertion" ;
+    rdfs:comment "A proposed architecture assertion submitted for validation before deployment." .
+
+#################################################################
+# Authoritative enterprise relationships
+#################################################################
+
+ea:ownedByDomain
+    a owl:ObjectProperty ;
+    rdfs:domain ea:Application ;
+    rdfs:range ea:Domain ;
+    rdfs:label "owned by domain" .
+
+ea:databaseOf
+    a owl:ObjectProperty ;
+    rdfs:domain ea:Database ;
+    rdfs:range ea:Application ;
+    rdfs:label "database of application" .
+
+ea:apiOf
+    a owl:ObjectProperty ;
+    rdfs:domain ea:API ;
+    rdfs:range ea:Application ;
+    rdfs:label "API of application" .
+
+#################################################################
+# Derived domain ownership
+#################################################################
+
+ea:belongsToDomain
+    a owl:ObjectProperty ;
+    rdfs:range ea:Domain ;
+    rdfs:label "belongs to domain" ;
+    rdfs:comment "Derived domain ownership for resources such as databases and APIs." ;
+    owl:propertyChainAxiom (
+        ea:databaseOf
+        ea:ownedByDomain
+    ) ;
+    owl:propertyChainAxiom (
+        ea:apiOf
+        ea:ownedByDomain
+    ) .
+
+#################################################################
+# Candidate deployment relationships
+#################################################################
+
+ea:deployedApplication
+    a owl:ObjectProperty ;
+    rdfs:domain ea:DeploymentAssertion ;
+    rdfs:range ea:Application ;
+    rdfs:label "deployed application" .
+
+ea:directDatabaseAccess
+    a owl:ObjectProperty ;
+    rdfs:domain ea:DeploymentAssertion ;
+    rdfs:range ea:Database ;
+    rdfs:label "direct database access" ;
+    rdfs:comment "Declares that the deployed application proposes a direct connection to a database." .
+
+ea:apiAccess
+    a owl:ObjectProperty ;
+    rdfs:domain ea:DeploymentAssertion ;
+    rdfs:range ea:API ;
+    rdfs:label "API access" ;
+    rdfs:comment "Declares that the deployed application proposes access via an API." .

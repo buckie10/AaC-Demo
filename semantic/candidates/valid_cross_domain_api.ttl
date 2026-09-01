@@ -1,0 +1,8 @@
+@prefix ea:  <https://example.org/architecture/ontology#> .
+@prefix ent: <https://example.org/architecture/entity/> .
+@prefix dep: <https://example.org/architecture/deployment/> .
+
+dep:valid-cross-domain-api
+    a ea:DeploymentAssertion ;
+    ea:deployedApplication ent:FC-TM ;
+    ea:apiAccess ent:RC-CASE-API .

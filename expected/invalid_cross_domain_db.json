@@ -1,0 +1,16 @@
+{
+  "status": "rejected",
+  "conforms": false,
+  "httpStatus": 422,
+  "violations": [
+    {
+      "code": "ARCH-DATA-001",
+      "severity": "ERROR",
+      "source": "FC-TM",
+      "target": "RC-CASE-DB",
+      "sourceDomain": "FC",
+      "targetDomain": "RC",
+      "message": "Direct database access across domain boundaries is prohibited. Cross-domain access must use an API."
+    }
+  ]
+}

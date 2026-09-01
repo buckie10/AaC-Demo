@@ -1,0 +1,79 @@
+@prefix ea:     <https://example.org/architecture/ontology#> .
+@prefix policy: <https://example.org/architecture/policy#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+
+#################################################################
+# Base deployment assertion shape
+#################################################################
+
+policy:DeploymentAssertionShape
+    a sh:NodeShape ;
+    sh:targetClass ea:DeploymentAssertion ;
+
+    sh:property [
+        sh:path ea:deployedApplication ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class ea:Application ;
+        sh:message "A deployment assertion must identify exactly one known application."
+    ] ;
+
+    sh:property [
+        sh:path ea:directDatabaseAccess ;
+        sh:class ea:Database ;
+        sh:message "Every direct database access target must resolve to a known Database."
+    ] ;
+
+    sh:property [
+        sh:path ea:apiAccess ;
+        sh:class ea:API ;
+        sh:message "Every API access target must resolve to a known API."
+    ] .
+
+#################################################################
+# ARCH-DATA-001
+#
+# An application may directly access a database only when the
+# application and the database-owning application are in the same
+# enterprise domain.
+#
+# Cross-domain data access must use a mediated interface such as an API.
+#
+# The SPARQL constraint intentionally traverses explicit authoritative
+# facts rather than depending on OWL property-chain materialisation.
+#################################################################
+
+policy:CrossDomainDirectDatabaseAccessShape
+    a sh:NodeShape ;
+    sh:targetClass ea:DeploymentAssertion ;
+    policy:errorCode "ARCH-DATA-001" ;
+    sh:severity sh:Violation ;
+    rdfs:label "Cross-domain direct database access policy" ;
+
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Direct database access across domain boundaries is prohibited. Cross-domain access must use an API." ;
+        sh:select """
+            PREFIX ea: <https://example.org/architecture/ontology#>
+
+            SELECT $this ?value ?sourceDomain ?targetDomain
+            WHERE {
+                $this
+                    ea:deployedApplication ?application ;
+                    ea:directDatabaseAccess ?value .
+
+                ?application
+                    ea:ownedByDomain ?sourceDomain .
+
+                ?value
+                    ea:databaseOf ?databaseApplication .
+
+                ?databaseApplication
+                    ea:ownedByDomain ?targetDomain .
+
+                FILTER (?sourceDomain != ?targetDomain)
+            }
+        """
+    ] .

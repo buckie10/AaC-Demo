@@ -1,0 +1,23 @@
+PREFIX ea: <https://example.org/architecture/ontology#>
+
+# Run this against a graph containing authoritative enterprise facts
+# plus one or more candidate DeploymentAssertion resources.
+SELECT ?assertion ?application ?database ?sourceDomain ?targetDomain
+WHERE {
+    ?assertion
+        a ea:DeploymentAssertion ;
+        ea:deployedApplication ?application ;
+        ea:directDatabaseAccess ?database .
+
+    ?application
+        ea:ownedByDomain ?sourceDomain .
+
+    ?database
+        ea:databaseOf ?databaseApplication .
+
+    ?databaseApplication
+        ea:ownedByDomain ?targetDomain .
+
+    FILTER (?sourceDomain != ?targetDomain)
+}
+ORDER BY ?assertion

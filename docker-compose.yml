@@ -1,0 +1,51 @@
+services:
+  fuseki:
+    image: atomgraph/fuseki:latest
+    command: ["--mem", "/architecture"]
+    environment:
+      ADMIN_PASSWORD: admin
+    ports:
+      - "${FUSEKI_HOST_PORT:-3030}:3030"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3030/$/ping >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  fuseki-bootstrap:
+    image: curlimages/curl:8.10.1
+    volumes:
+      - ./semantic:/semantic:ro
+    depends_on:
+      fuseki:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/semantic/bootstrap.sh"]
+
+  assertion-api:
+    build:
+      context: .
+      dockerfile: assertion-api/Dockerfile
+    environment:
+      FUSEKI_URL: http://fuseki:3030/architecture
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    depends_on:
+      fuseki-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  jenkins:
+    build: ./jenkins
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+    ports:
+      - "${JENKINS_HOST_PORT:-8080}:8080"
+    volumes:
+      - ./manifests:/workspace/manifests:ro
+    depends_on:
+      assertion-api:
+        condition: service_healthy

@@ -1,0 +1,12 @@
+manifestVersion: "1.0"
+
+deployment:
+  id: valid-cross-domain-api
+  application: FC-TM
+
+  components:
+    - id: transaction-monitoring-worker
+      type: service
+      connections:
+        - mode: api
+          target: RC-CASE-API

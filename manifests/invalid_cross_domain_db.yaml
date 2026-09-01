@@ -1,0 +1,12 @@
+manifestVersion: "1.0"
+
+deployment:
+  id: invalid-cross-domain-db
+  application: FC-TM
+
+  components:
+    - id: transaction-monitoring-worker
+      type: service
+      connections:
+        - mode: direct-database
+          target: RC-CASE-DB

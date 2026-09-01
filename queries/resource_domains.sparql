@@ -1,0 +1,19 @@
+PREFIX ea:  <https://example.org/architecture/ontology#>
+PREFIX ent: <https://example.org/architecture/entity/>
+
+# Explicit traversal version: works without OWL materialisation.
+SELECT ?resource ?domain
+WHERE {
+    {
+        ?resource a ea:Database ;
+                  ea:databaseOf ?application .
+    }
+    UNION
+    {
+        ?resource a ea:API ;
+                  ea:apiOf ?application .
+    }
+
+    ?application ea:ownedByDomain ?domain .
+}
+ORDER BY ?domain ?resource
